@@ -32,7 +32,9 @@ def main() -> int:
         kalip = re.compile(sys.argv[4])
         satirlar = [s for s in satirlar if kalip.search(s)]
     son = [s[:300] for s in satirlar[-n:]]
-    print("::error title=%s::%s" % (kac(baslik), kac("\n".join(son))))
+    import os as _os
+    seviye = _os.environ.get("OZET_SEVIYE", "error")          # error | notice | warning
+    print("::%s title=%s::%s" % (seviye, kac(baslik), kac("\n".join(son))))
     return 0
 
 
