@@ -176,7 +176,8 @@ jobs:
       - name: Hata özeti (testler)
         if: steps.kaynak_test.outcome == 'failure'
         run: |
-          python .github/ci/ozet.py test.log "Windows: kaynaktan testler" 60
+          python .github/ci/ozet.py test.log "Windows: kaynaktan testler (basarisizlar)" 80 "^(FAIL|ERROR): "
+          python .github/ci/ozet.py test.log "Windows: kaynaktan testler (son satirlar)" 40
       - name: Paketle
         run: |
           set -o pipefail
