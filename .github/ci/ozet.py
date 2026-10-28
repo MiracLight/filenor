@@ -27,6 +27,10 @@ def main() -> int:
     except OSError as e:
         import os
         satirlar = ["(gunluk okunamadi: %s)" % e, "cwd=" + os.getcwd(), "dosyalar: " + ", ".join(sorted(os.listdir("."))[:40])]
+    if len(sys.argv) > 4:                      # yalniz kalibe uyan satirlar (ornegin FAIL/ERROR adlari)
+        import re
+        kalip = re.compile(sys.argv[4])
+        satirlar = [s for s in satirlar if kalip.search(s)]
     son = [s[:300] for s in satirlar[-n:]]
     print("::error title=%s::%s" % (kac(baslik), kac("\n".join(son))))
     return 0
