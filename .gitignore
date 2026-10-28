@@ -31,7 +31,7 @@ LibreOffice/
 # Ignore folders created during the .exe creation process (PyInstaller/cx_Freeze)
 build/
 dist/
-*.spec
+# *.spec  (packaging/windows/filenor.spec depoda tutulur)
 
 ### System Files ###
 # OS generated files that add unnecessary noise to the repository
@@ -48,3 +48,11 @@ Desktop.ini
 .idea/
 *.swp
 *.swo
+
+# Derleme ve paketleme ciktilari
+build/
+dist/
+*.spec.bak
+*.deb
+__pycache__/
+*.pyc
