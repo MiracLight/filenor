@@ -21,7 +21,8 @@ def main() -> int:
         with open(yol, encoding="utf-8", errors="replace") as f:
             satirlar = f.read().splitlines()
     except OSError as e:
-        satirlar = ["(gunluk okunamadi: %s)" % e]
+        import os
+        satirlar = ["(gunluk okunamadi: %s)" % e, "cwd=" + os.getcwd(), "dosyalar: " + ", ".join(sorted(os.listdir("."))[:40])]
     son = [s[:300] for s in satirlar[-n:]]
     print("::error title=%s::%s" % (kac(baslik), kac("\n".join(son))))
     return 0

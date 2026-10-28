@@ -58,6 +58,10 @@ def bekle(kosul, sn=60):
 class ArayuzTesti(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        # Baska test modulleri ayni surecte HOME/XDG'yi degistirmis olabilir (discover): kendi ayarimizi geri koy
+        os.environ["HOME"] = _EV
+        os.environ["XDG_CONFIG_HOME"] = os.path.join(_EV, ".config")
+        os.environ.pop("FILENOR_AYAR_DIZINI", None)
         cls.kok = tempfile.mkdtemp(prefix="fn-ui-")
         from PIL import Image
         cls.gir = os.path.join(cls.kok, "girdi")

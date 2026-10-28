@@ -21,6 +21,9 @@ jobs:
       matrix:
         image: ["debian:12", "debian:13", "ubuntu:24.04"]
     container: ${{ matrix.image }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Bağımlılıkları kur
         env:
@@ -76,6 +79,9 @@ jobs:
       matrix:
         image: ["debian:12", "debian:13", "ubuntu:24.04"]
     container: ${{ matrix.image }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/download-artifact@v4
         with:
