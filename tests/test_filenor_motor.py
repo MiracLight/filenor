@@ -190,7 +190,7 @@ class TabloVeKurallar(unittest.TestCase):
 
     def test_hata_metinleri_iki_dilde(self):
         h = FilenorHata("arac_eksik", arac="qpdf")
-        self.assertIn("sudo apt install qpdf", hata_metni(h, "tr"))
+        self.assertIn("winget install" if os.name == "nt" else "sudo apt install qpdf", hata_metni(h, "tr"))
         self.assertIn("needs", hata_metni(h, "en"))
         self.assertIn("1-3", hata_metni(FilenorHata("sayfa_araligi", aralik="x"), "tr"))
 
@@ -224,8 +224,8 @@ class Girdiler(Temel):
         self.assertEqual(os.listdir(self.cikti), [])
 
     def test_yazilamaz_cikti(self):
-        if os.geteuid() == 0:
-            self.skipTest("root her yere yazar")
+        if os.name == "nt" or os.geteuid() == 0:
+            self.skipTest("izin bitleri yok (Windows) ya da root her yere yazar")
         d = os.path.join(self.kok, "salt")
         os.makedirs(d)
         os.chmod(d, 0o500)
