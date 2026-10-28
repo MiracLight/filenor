@@ -164,8 +164,9 @@ jobs:
               python -m pip install --break-system-packages "$k"
             done
             # Istege bagli: HEIC ve kamera RAW (derlenemezse o bicimler soluk kalir)
+            pacman -S --noconfirm --needed mingw-w64-x86_64-python-setuptools mingw-w64-x86_64-python-wheel mingw-w64-x86_64-pkgconf || true
             for k in pillow-heif rawpy; do
-              python -m pip install --break-system-packages "$k" || echo "UYARI: $k kurulamadi"
+              python -m pip install --break-system-packages --no-build-isolation "$k" 2>&1 | tail -25 || echo "UYARI: $k kurulamadi"
             done
             python -c "import pillow_heif; print('pillow_heif', pillow_heif.__version__)" || true
             python -c "import rawpy; print('rawpy', rawpy.__version__)" || true
