@@ -216,7 +216,7 @@ jobs:
       - name: Paket araç durumu
         if: always()
         run: |
-          OZET_SEVIYE=notice python .github/ci/ozet.py durum.json "Windows: paketteki araçlar" 3
+          OZET_SEVIYE=notice python .github/ci/ozet.py durum.json "Windows: paketteki araçlar" 40 "heif|rawpy|pillow|avif"
       - name: Zip
         shell: pwsh
         run: |
