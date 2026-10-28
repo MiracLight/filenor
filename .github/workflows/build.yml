@@ -1,0 +1,232 @@
+name: Build
+
+on:
+  push:
+    branches: [main, "carotos-gtk-*"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------- Linux testleri
+  test-linux:
+    name: Test (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["debian:12", "debian:13", "ubuntu:24.04"]
+    container: ${{ matrix.image }}
+    steps:
+      - name: Bağımlılıkları kur
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          LC_ALL: C
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates git python3 python3-gi python3-gi-cairo \
+            gir1.2-gtk-3.0 python3-pil python3-reportlab python3-fonttools python3-brotli python3-cairosvg \
+            python3-pypdf ffmpeg poppler-utils qpdf tesseract-ocr tesseract-ocr-eng xvfb xauth librsvg2-common \
+            fonts-dejavu-core libreoffice-writer libreoffice-calc libreoffice-impress
+      - uses: actions/checkout@v4
+      - name: Sözdizimi
+        run: python3 -m compileall -q filenor tests
+      - name: Testler
+        env:
+          HOME: /root
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -o pipefail
+          G_DEBUG=fatal-criticals xvfb-run -a -s "-screen 0 1400x900x24" \
+            python3 -m unittest discover -s tests -p 'test_filenor_*.py' 2>&1 | tee test.log
+      - name: Hata özeti
+        if: failure()
+        run: |
+          python3 .github/ci/ozet.py test.log "Linux testleri (${{ matrix.image }})" 70
+
+  # ---------------------------------------------------------------- .deb
+  deb:
+    name: Debian paketi
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sürümü belirle
+        id: s
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; else v="0.0.0~git$(git rev-parse --short HEAD)"; fi
+          echo "v=$v" >> "$GITHUB_OUTPUT"
+      - name: Derle
+        run: packaging/debian/build-deb.sh "${{ steps.s.outputs.v }}" dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb
+          path: dist/*.deb
+
+  deb-kur:
+    name: Paketi kur (${{ matrix.image }})
+    needs: deb
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["debian:12", "debian:13", "ubuntu:24.04"]
+    container: ${{ matrix.image }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: deb
+          path: dist
+      - name: Kur ve çalıştır
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          LC_ALL: C
+          HOME: /root
+        run: |
+          set -o pipefail
+          {
+            apt-get update
+            apt-get install -y --no-install-recommends ./dist/*.deb xvfb xauth
+            filenor --surum
+            filenor-cli durum
+            FILENOR_SINAMA_CIKTI=/tmp/sina.txt xvfb-run -a filenor --kendini-sina
+            cat /tmp/sina.txt
+            grep -q '^TAMAM' /tmp/sina.txt
+            test -f /usr/share/applications/filenor.desktop
+            test -f /usr/share/icons/hicolor/256x256/apps/filenor.png
+          } 2>&1 | tee kur.log
+      - uses: actions/checkout@v4
+        if: failure()
+      - name: Hata özeti
+        if: failure()
+        run: |
+          apt-get install -y --no-install-recommends python3 >/dev/null 2>&1 || true
+          python3 .github/ci/ozet.py kur.log "Paket kurulumu (${{ matrix.image }})" 60
+
+  # ---------------------------------------------------------------- Windows
+  windows:
+    name: Windows (MSYS2 + PyInstaller)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-python
+            mingw-w64-x86_64-python-pip
+            mingw-w64-x86_64-python-gobject
+            mingw-w64-x86_64-python-cairo
+            mingw-w64-x86_64-gtk3
+            mingw-w64-x86_64-librsvg
+            mingw-w64-x86_64-adwaita-icon-theme
+            mingw-w64-x86_64-python-pillow
+            mingw-w64-x86_64-ttf-dejavu
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-zlib
+            git
+      - name: Sürümü belirle
+        id: s
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; else v="0.0.0"; fi
+          echo "v=$v" >> "$GITHUB_OUTPUT"
+      - name: Python modülleri
+        run: |
+          set -o pipefail
+          {
+            python -m pip --version
+            for p in mingw-w64-x86_64-python-reportlab mingw-w64-x86_64-python-fonttools mingw-w64-x86_64-python-brotli \
+                     mingw-w64-x86_64-python-cairosvg mingw-w64-x86_64-python-pypdf mingw-w64-x86_64-python-pyinstaller; do
+              pacman -S --noconfirm --needed "$p" || echo "pacman: $p yok, pip denenecek"
+            done
+            for m in reportlab fontTools brotli cairosvg pypdf PyInstaller; do
+              python -c "import $m" 2>/dev/null && echo "var: $m" && continue
+              case $m in fontTools) k=fonttools;; PyInstaller) k=pyinstaller;; *) k=$m;; esac
+              python -m pip install --break-system-packages "$k"
+            done
+            python -c "import PyInstaller, sys; print('PyInstaller', PyInstaller.__version__, sys.version)"
+          } 2>&1 | tee modul.log
+      - name: Hata özeti (modüller)
+        if: failure()
+        run: |
+          python .github/ci/ozet.py modul.log "Windows: Python modülleri" 60
+      - name: Linux ile ortak testler (kaynaktan)
+        id: kaynak_test
+        continue-on-error: true
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -o pipefail
+          python -m unittest tests.test_filenor_sistem tests.test_filenor_kurulum tests.test_filenor_motor 2>&1 | tee test.log
+      - name: Hata özeti (testler)
+        if: steps.kaynak_test.outcome == 'failure'
+        run: |
+          python .github/ci/ozet.py test.log "Windows: kaynaktan testler" 60
+      - name: Paketle
+        run: |
+          set -o pipefail
+          cd packaging/windows
+          python -m PyInstaller --noconfirm --clean --distpath ../../dist --workpath ../../build filenor.spec 2>&1 | tee ../../paket.log
+      - name: Hata özeti (paketleme)
+        if: failure()
+        run: |
+          python .github/ci/ozet.py paket.log "Windows: PyInstaller" 80
+      - name: Paketlenmiş uygulamayı sına
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $exe = "dist\Filenor\Filenor.exe"
+          if (-not (Test-Path $exe)) { Get-ChildItem dist -Recurse | Select-Object -First 40 | Out-String | Write-Host; throw "Filenor.exe yok" }
+          $env:FILENOR_SINAMA_CIKTI = "$PWD\sina.txt"
+          $p = Start-Process -FilePath $exe -ArgumentList "--kendini-sina" -Wait -PassThru
+          Write-Host "çıkış kodu: $($p.ExitCode)"
+          if (Test-Path sina.txt) { Get-Content sina.txt } else { Write-Host "sina.txt yok" }
+          $cli = & "dist\Filenor\filenor-cli.exe" durum --json
+          Write-Host $cli
+          if ($p.ExitCode -ne 0) { throw "kendini sınama başarısız" }
+      - name: Zip
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist\Filenor -DestinationPath "dist\Filenor-${{ steps.s.outputs.v }}-windows-x64.zip"
+      - name: Kurulum sihirbazı (Inno Setup)
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress | Out-Null
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          & $iscc "/DAppVersion=${{ steps.s.outputs.v }}" "/Odist" "packaging\windows\filenor.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup başarısız" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            dist/Filenor-*.zip
+            dist/Filenor-*-setup.exe
+
+  # ---------------------------------------------------------------- Yayın
+  surum:
+    name: Sürüm yayınla
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test-linux, deb-kur, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: yayin
+      - name: GitHub sürümü oluştur
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --title "Filenor ${GITHUB_REF_NAME#v}" \
+            --notes-file CHANGELOG.md yayin/deb/*.deb yayin/windows/*
