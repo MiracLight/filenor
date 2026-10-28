@@ -177,7 +177,7 @@ jobs:
         if: steps.kaynak_test.outcome == 'failure'
         run: |
           python .github/ci/ozet.py test.log "Windows: kaynaktan testler (basarisizlar)" 80 "^(FAIL|ERROR): "
-          python .github/ci/ozet.py test.log "Windows: kaynaktan testler (son satirlar)" 40
+          python .github/ci/ozet.py test.log "Windows: kaynaktan testler (hata turleri)" 40 "^[A-Za-z_.]*(Error|Exception|Hata|Iptal)\\b"
       - name: Paketle
         run: |
           set -o pipefail

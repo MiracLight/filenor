@@ -87,6 +87,8 @@ class Klasorler(unittest.TestCase):
 
 class Araclar(unittest.TestCase):
     def test_ek_arac_dizini_path_e_eklenir(self):
+        if os.name == "nt":
+            self.skipTest("sh betigi ve ':' ayiricisi: Linux'a ozgu")
         d = tempfile.mkdtemp()
         betik = os.path.join(d, "filenor-sahte-arac")
         with open(betik, "w") as f:
@@ -159,7 +161,8 @@ class Surecler(unittest.TestCase):
     def test_calistir_utf8_cikti(self):
         o = M.Oturum()
         try:
-            _, out, _ = M.calistir(o, [sys.executable, "-c", "print('ş ğ ı İ ö ü ç')"], "python")
+            _, out, _ = M.calistir(o, [sys.executable, "-c", "print('ş ğ ı İ ö ü ç')"], "python",
+                                env={"PYTHONIOENCODING": "utf-8"})
             self.assertIn("ş ğ ı İ ö ü ç", out)
         finally:
             o.kapat()

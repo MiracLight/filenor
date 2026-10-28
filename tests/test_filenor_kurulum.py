@@ -31,6 +31,7 @@ def betik_yaz(yol, icerik):
     os.chmod(yol, os.stat(yol).st_mode | stat.S_IXUSR)
 
 
+@unittest.skipIf(os.name == "nt", "apt/sh senaryosu: Linux'a özgü")
 class PlanTesti(unittest.TestCase):
     def test_apt_plani_tekrarsiz(self):
         p = K.plan(["ffmpeg", "ffprobe", "pillow", "tesseract"], HEPSI_YOK, apt_kullan=True, pip_kullan=True)
@@ -88,6 +89,7 @@ class PlanTesti(unittest.TestCase):
             self.assertIn(k, K.PIP)
 
 
+@unittest.skipIf(os.name == "nt", "apt/sh senaryosu: Linux'a özgü")
 class KurTesti(unittest.TestCase):
     def setUp(self):
         self.d = tempfile.mkdtemp(prefix="fn-kur-")
