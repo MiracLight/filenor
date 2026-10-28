@@ -48,3 +48,11 @@ Desktop.ini
 .idea/
 *.swp
 *.swo
+
+# Derleme ve paketleme ciktilari
+build/
+dist/
+*.spec.bak
+*.deb
+__pycache__/
+*.pyc
