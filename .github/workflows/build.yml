@@ -164,6 +164,7 @@ jobs:
               python -m pip install --break-system-packages "$k"
             done
             # Istege bagli: HEIC ve kamera RAW (derlenemezse o bicimler soluk kalir)
+            export MSYS2_PREFIX="$(cygpath -w "$MSYSTEM_PREFIX")"
             pacman -S --noconfirm --needed mingw-w64-x86_64-python-setuptools mingw-w64-x86_64-python-wheel mingw-w64-x86_64-pkgconf || true
             for k in pillow-heif rawpy; do
               python -m pip install --break-system-packages --no-build-isolation "$k" 2>&1 | tail -25 || echo "UYARI: $k kurulamadi"
@@ -210,7 +211,12 @@ jobs:
           if (Test-Path sina.txt) { Get-Content sina.txt } else { Write-Host "sina.txt yok" }
           $cli = & "dist\Filenor\filenor-cli.exe" durum --json
           Write-Host $cli
+          $cli | Out-File -Encoding utf8 durum.json
           if ($p.ExitCode -ne 0) { throw "kendini sınama başarısız" }
+      - name: Paket araç durumu
+        if: always()
+        run: |
+          OZET_SEVIYE=notice python .github/ci/ozet.py durum.json "Windows: paketteki araçlar" 3
       - name: Zip
         shell: pwsh
         run: |
