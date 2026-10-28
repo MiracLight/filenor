@@ -119,8 +119,8 @@ def ipucu_al(arac: str, dil: str = "tr") -> str:
         if arac in ("avif", "webp"):
             pass
         elif arac in ARAC_IPUCU:
-            return ("Bu Filenor sürümünde yok; en son sürümü indirin" if dil == "tr"
-                    else "Not included in this Filenor build; download the latest release")
+            return ("Bu Windows sürümünde desteklenmiyor" if dil == "tr"
+                    else "Not supported in this Windows build")
     ip = ARAC_IPUCU.get(arac, {})
     return ip.get(dil) or ip.get("tr", "")
 
