@@ -60,7 +60,7 @@ jobs:
       - name: Sürümü belirle
         id: s
         run: |
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; else v="0.0.0~git$(git rev-parse --short HEAD)"; fi
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; else t=$(sed -n 's/^APP_VERSION = "\(.*\)"/\1/p' filenor/filenor_uygulama.py); v="${t}.0~git$(git rev-parse --short HEAD)"; fi
           echo "v=$v" >> "$GITHUB_OUTPUT"
       - name: Derle
         run: packaging/debian/build-deb.sh "${{ steps.s.outputs.v }}" dist
@@ -139,11 +139,15 @@ jobs:
             mingw-w64-x86_64-ttf-dejavu
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-libheif
+            mingw-w64-x86_64-libraw
+            mingw-w64-x86_64-python-numpy
+            mingw-w64-x86_64-cython
             git
       - name: Sürümü belirle
         id: s
         run: |
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; else v="0.0.0"; fi
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; else t=$(sed -n 's/^APP_VERSION = "\(.*\)"/\1/p' filenor/filenor_uygulama.py); v="${t}.0-dev.$(git rev-parse --short HEAD)"; fi
           echo "v=$v" >> "$GITHUB_OUTPUT"
       - name: Python modülleri
         run: |
@@ -159,10 +163,16 @@ jobs:
               case $m in fontTools) k=fonttools;; PyInstaller) k=pyinstaller;; *) k=$m;; esac
               python -m pip install --break-system-packages "$k"
             done
+            # Istege bagli: HEIC ve kamera RAW (derlenemezse o bicimler soluk kalir)
+            for k in pillow-heif rawpy; do
+              python -m pip install --break-system-packages "$k" || echo "UYARI: $k kurulamadi"
+            done
+            python -c "import pillow_heif; print('pillow_heif', pillow_heif.__version__)" || true
+            python -c "import rawpy; print('rawpy', rawpy.__version__)" || true
             python -c "import PyInstaller, sys; print('PyInstaller', PyInstaller.__version__, sys.version)"
           } 2>&1 | tee modul.log
       - name: Hata özeti (modüller)
-        if: failure()
+        if: always()
         run: |
           python .github/ci/ozet.py modul.log "Windows: Python modülleri" 60
       - name: Linux ile ortak testler (kaynaktan)
