@@ -14,6 +14,10 @@ def kac(m: str) -> str:
 
 
 def main() -> int:
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")   # Windows konsolu cp1252 olabilir
+    except (AttributeError, ValueError):
+        pass
     yol = sys.argv[1]
     baslik = sys.argv[2] if len(sys.argv) > 2 else "gunluk"
     n = int(sys.argv[3]) if len(sys.argv) > 3 else 60
