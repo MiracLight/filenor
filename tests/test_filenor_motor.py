@@ -325,6 +325,7 @@ class Gorsel(Temel):
         self.assertNotEqual(a, b)
         self.assertTrue(os.path.exists(a) and os.path.exists(b))
 
+    @need("qpdf")
     def test_gorsel_pdf(self):
         s = self.bir("alfa.png", "pdf")
         self.assertEqual(M.pdf_bilgi(self.oturum, s)["sayfa"], 1)
