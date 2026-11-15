@@ -9,6 +9,68 @@ diliyle kurulur. Boylece motor dilden bagimsiz kalir, testler kodu dener.
 from __future__ import annotations
 
 import os
+import sys
+
+# Ortak dil katmani (ortak/dil.py): 9 dil icin ceviri dosyalarindan metin. Filenor tek basina
+# (ortak/ olmadan) calisirsa yalniz tr/en bilinir; burasi onu sessizce karsilar.
+try:
+    import dil as _dil
+except ImportError:
+    _ORTAK = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ortak")
+    if os.path.isdir(_ORTAK) and _ORTAK not in sys.path:
+        sys.path.insert(0, _ORTAK)
+    try:
+        import dil as _dil
+    except ImportError:
+        _dil = None
+
+
+def sec(sozluk, kod: str) -> str:
+    """{"tr","en",..} sozlugunden `kod` dilindeki metin; yoksa dil dosyasi, en, tr siralamasiyla."""
+    if _dil is not None:
+        return _dil.metin(sozluk, kod)
+    return sozluk.get(kod) or sozluk.get("en") or sozluk.get("tr", "")
+
+
+def T(sozluk, kod: str, **kw) -> str:
+    """sec() + str.format; bozuk ceviri yer tutucusunda Ingilizce/Turkce metne duser, istisna atmaz."""
+    if _dil is not None:
+        return _dil.T(sozluk, kod, None, **kw)
+    sablon = sec(sozluk, kod)
+    try:
+        return sablon.format(**kw)
+    except (KeyError, IndexError, ValueError):
+        return sablon
+
+
+def zengin(veri):
+    """Ic ice {"tr","en"} sozluklerini `[kod]` ile her dilde guvenle okunur yapar."""
+    return _dil.zenginlestir(veri) if _dil is not None else veri
+
+
+def etkin_diller():
+    """Dil seciciye girecek [(kod, ad, taslak_mi)]; ortak katman yoksa yalniz tr/en."""
+    if _dil is not None:
+        return _dil.etkin_diller()
+    return [("tr", "Türkçe", False), ("en", "English", False)]
+
+
+def secici_adi(kod: str, ad: str, taslak: bool) -> str:
+    """Dil seciciye yazilacak ad (yazi tipi yoksa Latin ad; taslak ise '(beta)')."""
+    if _dil is not None:
+        return _dil.secici_adi(kod, ad, taslak)
+    return f"{ad} (beta)" if taslak else ad
+
+
+def gecerli_dil(kod: str):
+    """Ayardaki dil seciciye girebiliyorsa kod, degilse None."""
+    return kod if kod in {k for k, _, _ in etkin_diller()} else None
+
+
+def varsayilan_dil():
+    """Sistem dilinden ilk acilis dili (ortak katman yoksa None)."""
+    return _dil.varsayilan_dil() if _dil is not None else None
+
 
 MESAJ = {
     "ayni_bicim": {
@@ -70,10 +132,31 @@ MESAJ = {
     "kurulum_yetki": {
         "tr": "Yönetici yetkisi alınamadı (parola penceresi kapatıldı ya da yetki aracı çalışmıyor)",
         "en": "Administrator rights were not granted (the password prompt was closed or the helper is not running)"},
+    "kurulum_pypi_reddedildi": {
+        "tr": "{liste} kurulmadı: Python paket deposundan (PyPI) indirmeye izin vermediniz. Bu özellik kullanılamaz",
+        "en": "{liste} was not installed: you did not allow downloading from the Python package index (PyPI). This feature is unavailable"},
+    "kurulum_pypi_izin_yok": {
+        "tr": "{liste} Debian deposunda yok; PyPI'dan indirilmesi için açık izin gerekir. Kurulmadı, bu özellik kullanılamaz. İzin vermek için --pypi-izin ekleyin",
+        "en": "{liste} is not in the Debian repositories; downloading it from PyPI needs explicit permission. Nothing was installed and the feature is unavailable. Add --pypi-izin to allow it"},
     "kurulum_basarisiz": {
         "tr": "Kurulum tamamlanamadı (çıkış kodu {cikis}). İnternet bağlantısını ve paket kilidini kontrol edin",
         "en": "The installation did not finish (exit code {cikis}). Check the network and that no other package manager is running"},
     "bilinmeyen": {"tr": "Beklenmeyen hata: {ayrinti}", "en": "Unexpected error: {ayrinti}"},
+    "cok_buyuk": {
+        "tr": "Bu animasyon çok büyük ({kare} kare, {genislik}x{yukseklik}); belleği doldurabilir. Daha küçük bir dosya ya da ilk kare için tek kareli bir biçim deneyin",
+        "en": "This animation is too large ({kare} frames, {genislik}x{yukseklik}) and could exhaust memory. Try a smaller file"},
+    "zip_hata": {
+        "tr": "ZIP dosyası oluşturulamadı: {ayrinti}. Dönüştürülen dosyalar yerinde duruyor",
+        "en": "The ZIP file could not be created: {ayrinti}. The converted files are untouched"},
+    "cok_sayfa": {
+        "tr": "Çok fazla sayfa ({n}); tek seferde en fazla {sinir}. Sayfa aralığı seçin",
+        "en": "Too many pages ({n}); at most {sinir} at a time. Choose a page range"},
+    "disk_yetersiz": {
+        "tr": "Diskte yeterli boş yer yok (gerekli yaklaşık {gerekli}, boş {bos})",
+        "en": "Not enough free disk space (about {gerekli} needed, {bos} free)"},
+    "parola_gecersiz": {
+        "tr": "Parola satır sonu karakteri içeremez",
+        "en": "The password cannot contain line breaks"},
 }
 
 # Eksik arac icin kullaniciya yol gosteren kisa ipucu.
@@ -91,7 +174,8 @@ ARAC_IPUCU = {
     "fonttools": {"tr": "Kurulum: sudo apt install python3-fonttools", "en": "Install: sudo apt install python3-fonttools"},
     "brotli": {"tr": "Kurulum: sudo apt install python3-brotli", "en": "Install: sudo apt install python3-brotli"},
     "svg": {"tr": "Kurulum: sudo apt install python3-cairosvg", "en": "Install: sudo apt install python3-cairosvg"},
-    "rawpy": {"tr": "Kurulum: pip install --user rawpy", "en": "Install: pip install --user rawpy"},
+    "rawpy": {"tr": "Kurulum: Filenor Ayarlar'daki Kur düğmesi (onayınla PyPI'dan indirilir)",
+              "en": "Install: the Install button in Filenor Settings (downloaded from PyPI with your permission)"},
     "heif": {"tr": "Kurulum: sudo apt install python3-pillow-heif", "en": "Install: sudo apt install python3-pillow-heif"},
     "avif": {"tr": "Bu Pillow sürümü AVIF desteklemiyor", "en": "This Pillow build has no AVIF support"},
     "gs": {"tr": "Kurulum: sudo apt install ghostscript", "en": "Install: sudo apt install ghostscript"},
@@ -109,20 +193,26 @@ _WINGET_KIMLIK = {
 }
 
 
+_WINGET_IPUCU = {
+    "tr": "Kurulum: winget install {k} (ya da Ayarlar'daki Kur düğmesi)",
+    "en": "Install: winget install {k} (or the Install button in Settings)"}
+_WINDOWS_YOK = {
+    "tr": "Bu Windows sürümünde desteklenmiyor",
+    "en": "Not supported in this Windows build"}
+
+
 def ipucu_al(arac: str, dil: str = "tr") -> str:
     """Eksik arac icin kurulum ipucu; isletim sistemine gore (apt komutu / winget kimligi)."""
     if os.name == "nt":
         if arac in _WINGET_KIMLIK:
             k = _WINGET_KIMLIK[arac]
-            return (f"Kurulum: winget install {k} (ya da Ayarlar'daki Kur düğmesi)" if dil == "tr"
-                    else f"Install: winget install {k} (or the Install button in Settings)")
+            return T(_WINGET_IPUCU, dil, k=k)
         if arac in ("avif", "webp"):
             pass
         elif arac in ARAC_IPUCU:
-            return ("Bu Windows sürümünde desteklenmiyor" if dil == "tr"
-                    else "Not supported in this Windows build")
-    ip = ARAC_IPUCU.get(arac, {})
-    return ip.get(dil) or ip.get("tr", "")
+            return sec(_WINDOWS_YOK, dil)
+    ip = ARAC_IPUCU.get(arac)
+    return sec(ip, dil) if ip else ""
 
 
 class FilenorHata(Exception):
@@ -142,14 +232,19 @@ def hata_metni(h: "FilenorHata", dil: str = "tr") -> str:
     kayit = MESAJ.get(h.kod)
     if not kayit:
         return f"{h.kod}: {h.ayrinti}"
-    kalip = kayit.get(dil) or kayit["tr"]
+    kalip = sec(kayit, dil)
     d = dict(h.ayrinti)
     if h.kod == "arac_eksik":
         d["ipucu"] = ipucu_al(d.get("arac", ""), dil)
-    try:
-        return kalip.format(**d).strip()
-    except (KeyError, IndexError):
-        return kalip
+    # ceviri yer tutucuyu bozmussa Ingilizce, o da olmazsa Turkce metne dusulur
+    for aday in (kalip, kayit.get("en"), kayit.get("tr")):
+        if not aday:
+            continue
+        try:
+            return aday.format(**d).strip()
+        except (KeyError, IndexError, ValueError):
+            continue
+    return kalip
 
 
 def mesaj(kod: str, dil: str = "tr", **d) -> str:

@@ -418,7 +418,7 @@ class ArayuzTesti(unittest.TestCase):
 
     def test_surum_bayragi(self):
         self.assertEqual(F.ana(["filenor", "--surum"]), 0)
-        self.assertEqual(F.APP_VERSION, "2.0")
+        self.assertEqual(F.APP_VERSION, "2.0.1")
 
     def test_kurulum_yetki_reddi_hata_gosterir(self):
         def kur(plan, cb=None, **kw):

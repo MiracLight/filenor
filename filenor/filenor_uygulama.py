@@ -23,6 +23,7 @@ from __future__ import annotations
 import os
 import sys
 import threading
+import time
 
 sys.dont_write_bytecode = True
 
@@ -44,9 +45,10 @@ import filenor_motor as M  # noqa: E402
 import filenor_kurulum as K  # noqa: E402
 import filenor_sistem as S  # noqa: E402
 from filenor_dil import FilenorHata, hata_metni  # noqa: E402
+from filenor_dil import T as _T, etkin_diller, gecerli_dil, sec, secici_adi, varsayilan_dil  # noqa: E402
 from filenor_metin import METIN  # noqa: E402
 
-APP_VERSION = "2.0"
+APP_VERSION = "2.0.1"
 
 BOLUMLER = [
     ("calisma", [("donustur", "yenile"), ("araclar", "arac")]),
@@ -79,6 +81,12 @@ SECENEK_TANIM = {
 
 
 def dil_varsayilan() -> str:
+    """Ilk acilis dili. Linux: sistem dili etkin bir dilse o (ortak/dil.py), degilse en.
+    Windows: sistem arayuz dili tr/en."""
+    if os.name != "nt" and not os.environ.get("FILENOR_DIL"):
+        kod = varsayilan_dil()
+        if kod:
+            return kod
     return S.sistem_dili()
 
 
@@ -114,10 +122,17 @@ def ac(yol: str) -> None:
     S.ac(yol)
 
 
-def klasor_dosyalari(klasor: str, sinir: int = 1000) -> list[str]:
+def klasor_dosyalari(klasor: str, sinir: int = 1000, bakilacak: int = 50000, sure: float = 5.0) -> list[str]:
+    """Klasördeki desteklenen dosyalar. Eşleşme sayısı (sinir), bakılan girdi sayısı (bakilacak) ve süre
+    (sure, sn) ile sınırlıdır: ev dizini gibi dev ağaçta arayüz donmaz."""
     uzantilar = set(M.kaynak_uzantilari())
     sonuc: list[str] = []
+    bas = time.monotonic()
+    gorulen = 0
     for kok, dizinler, dosyalar in os.walk(klasor):
+        gorulen += len(dizinler) + len(dosyalar)
+        if gorulen > bakilacak or time.monotonic() - bas > sure:
+            return sonuc
         dizinler[:] = sorted(d for d in dizinler if not d.startswith("."))
         for d in sorted(dosyalar):
             if d.startswith("."):
@@ -366,7 +381,7 @@ class Panel:
         for anahtar, (etk, w, ipucu) in self._sec_w.items():
             etk.set_text(t("sec_" + anahtar))
             ip = METIN.get("sech_" + anahtar)
-            ipucu.set_text(ip[self.uyg.lang] if ip else "")
+            ipucu.set_text(sec(ip, self.uyg.lang) if ip else "")
             if hasattr(w, "_dugmeler"):
                 for k, d in w._dugmeler.items():
                     d.set_label(t(w._metinler[k]))
@@ -973,6 +988,9 @@ class Panel:
             parcalar.append(self.t("bitti_hata", n=hata))
         if iptal:
             parcalar.append(self.t("bitti_iptal", n=iptal))
+        zh = getattr(k, "zip_hata", None)
+        if zh:
+            parcalar.append(hata_metni(zh, self.uyg.lang))
         self.durum_metin.set_text(" · ".join(parcalar))
         tum = [s for x in isler if x.durum == "tamam" for s in x.sonuc]
         if k and getattr(k, "zip_yolu", None):
@@ -998,7 +1016,7 @@ class Uygulama(Gtk.Window):
     def __init__(self, dosyalar: list[str] | None = None, logo: str | None = None):
         super().__init__(title="Filenor")
         self.ayar = M.ayar_oku()
-        if self.ayar.get("dil") not in ("tr", "en"):
+        if gecerli_dil(self.ayar.get("dil")) is None:
             self.ayar["dil"] = dil_varsayilan()
         if self.ayar.get("tema") not in ("dark", "light"):
             self.ayar["tema"] = "dark"
@@ -1028,9 +1046,9 @@ class Uygulama(Gtk.Window):
 
         # sol alt: dil + görünüm (diğer uygulamalarla aynı yer)
         alt = Gtk.Box(spacing=8)
-        self.dil_kutu = Gtk.ComboBoxText()
-        self.dil_kutu.append("tr", "Türkçe")
-        self.dil_kutu.append("en", "English")
+        self.dil_kutu = tema.AcilirSecim()
+        for kod, ad, taslak in etkin_diller():
+            self.dil_kutu.append(kod, secici_adi(kod, ad, taslak))
         self.dil_kutu.set_active_id(self.lang)
         self.dil_kutu.connect("changed", self.dil_degisti)
         alt.pack_start(self.dil_kutu, True, True, 0)
@@ -1060,8 +1078,7 @@ class Uygulama(Gtk.Window):
 
     # -- genel -------------------------------------------------------------------
     def t(self, anahtar, **kw):
-        m = METIN[anahtar][self.lang]
-        return m.format(**kw) if kw else m
+        return _T(METIN[anahtar], self.lang, **kw) if kw else sec(METIN[anahtar], self.lang)
 
     def ayar_kaydet(self):
         M.ayar_yaz(self.ayar)
@@ -1070,9 +1087,14 @@ class Uygulama(Gtk.Window):
         return {"donustur": self.paneller["donustur"], "araclar": self.paneller["araclar"]}.get(self.aktif)
 
     def _kapaniyor(self, *_):
+        bekle = []
         for p in self.paneller.values():
             if p.kosucu and p.calisiyor:
                 p.kosucu.iptal_et()
+                bekle.append(p.kosucu)
+        son = time.monotonic() + 3.0         # araç süreçleri öldürülsün, iş klasörü silinsin (F-05)
+        for k in bekle:
+            k.join(timeout=max(0.0, son - time.monotonic()))
         if Gtk.main_level() > 0:
             Gtk.main_quit()
 
@@ -1245,12 +1267,34 @@ class Uygulama(Gtk.Window):
         hata = None
         try:
             K.kur(pl, lambda satir: GLib.idle_add(self._kur_satir, satir),
-                  ilerleme_cb=lambda o, a, d: GLib.idle_add(self._kur_ilerle, o, a, d))
+                  ilerleme_cb=lambda o, a, d: GLib.idle_add(self._kur_ilerle, o, a, d),
+                  pypi_izin=self._pypi_sor)
         except FilenorHata as h:
             hata = h
         except Exception as e:          # beklenmeyen: arayüz asılı kalmasın
             hata = FilenorHata("bilinmeyen", ayrinti=str(e))
         GLib.idle_add(self._kur_bitti, pl, hata)
+
+    def _pypi_sor(self, paketler):
+        """F-10: PyPI'dan (denetlenmeyen, internetten) indirmeden ONCE onay penceresi.
+        Kurulum iş parçacığından çağrılır; pencere ana iş parçacığında açılır, yanıt beklenir."""
+        olay = threading.Event()
+        sonuc = [False]
+        liste = ", ".join(paketler)
+
+        def sor():
+            try:
+                sonuc[0] = bool(tema.onay_sor(
+                    self, self.t("kur_pypi_baslik", liste=liste), self.t("kur_pypi_metin", liste=liste),
+                    self.t("kur_onay_evet"), self.t("kur_onay_hayir")))
+            except Exception:
+                sonuc[0] = False
+            finally:
+                olay.set()
+            return False
+        GLib.idle_add(sor)
+        olay.wait()
+        return sonuc[0]
 
     def _kur_satir(self, satir):
         self.a_kur_durum.set_tooltip_text(satir[:300])      # ham çıktı: üzerine gelince

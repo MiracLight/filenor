@@ -16,7 +16,7 @@ from typing import Optional
 
 import filenor_motor as M
 import filenor_sistem as S
-from filenor_dil import FilenorHata
+from filenor_dil import FilenorHata, zengin
 from filenor_motor import Oturum, Secenek, calistir, tur, uzanti
 
 # id -> tanım. UI bu tablodan Araçlar sayfasını kurar.
@@ -73,6 +73,7 @@ ARACLAR: dict[str, dict] = {
         "girdi": {"video", "ses"}, "min": 1, "sec": ["baslangic", "bitis", "kalite"], "gerekli": ["ffmpeg", "ffprobe"], "cikti": "",
     },
 }
+ARACLAR = zengin(ARACLAR)   # ad/ac her dilde [kod] ile okunur (dil dosyasi, en, tr yedegi)
 
 
 def arac_kullanilabilir(ad: str) -> list[str]:
@@ -251,9 +252,11 @@ def _e_kilit_ac(o: Oturum, kaynak: str, ext: str, hedef: str, isd: str, sec: Sec
         # Parolasız açılabilen (yalnız sahip kısıtlı) PDF'i de temizleyebilir
         pass
     cikti = os.path.join(isd, "cikti.pdf")
-    kom = ["--decrypt"] + ([f"--password={sec.parola}"] if sec.parola else []) + [kaynak, cikti]
     try:
-        _qpdf(o, kom)
+        if sec.parola:
+            M._qpdf_gizli(o, [f"--password={sec.parola}"], ["--decrypt", kaynak, cikti], kabul=(0, 3))
+        else:
+            _qpdf(o, ["--decrypt", kaynak, cikti])
     except FilenorHata as h:
         if h.kod == "arac_hata" and "password" in str(h.ayrinti.get("ayrinti", "")).lower():
             raise FilenorHata("sifreli_pdf")
@@ -266,7 +269,7 @@ def _e_kilitle(o: Oturum, kaynak: str, ext: str, hedef: str, isd: str, sec: Sece
         raise FilenorHata("sifreli_pdf")
     pdf = _pdf_hazir(o, kaynak, isd, sec)
     cikti = os.path.join(isd, "cikti.pdf")
-    _qpdf(o, ["--encrypt", sec.yeni_parola, sec.yeni_parola, "256", "--", pdf, cikti])
+    M._qpdf_gizli(o, ["--encrypt", sec.yeni_parola, sec.yeni_parola, "256", "--"], [pdf, cikti], kabul=(0, 3))
     return [cikti], ""
 
 
@@ -299,7 +302,7 @@ def _e_gorsel_kucult_ic(o: Oturum, img, kaynak: str, hedef: str, isd: str, sec: 
         pass
     cikti = os.path.join(isd, "cikti." + hedef)
     try:
-        M.gorsel_isle(img, hedef, cikti, sec, hepsi=True, korunacak_exif=exif, icc=icc)
+        M.gorsel_isle(img, hedef, cikti, sec, hepsi=True, korunacak_exif=exif, icc=icc, kontrol=o.kontrol_iptal)
     except (OSError, ValueError, KeyError) as e:
         raise FilenorHata("arac_hata", arac="Pillow", ayrinti=str(e)[:200])
     # Yalnız kalite düşürme istendiyse ve büyüdüyse özgünü koru (meta silme/boyut değişimi hariç)
