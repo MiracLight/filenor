@@ -1,5 +1,25 @@
 # Changelog / Değişiklik günlüğü
 
+## 2.0.1
+
+**EN** — Security review fixes from the CarotOS 1.4 audit, a new icon and a safer way to install missing Python modules.
+
+- Images open only as raster formats (the EPS/Ghostscript route is closed). ffmpeg input is limited to the `file` protocol and the allowed containers.
+- The worker always finishes, and a ZIP error is shown instead of being swallowed. Helper processes and work folders are cleaned up when you quit.
+- The `qpdf` password no longer appears on the command line. File names are trimmed by byte length, and a name that starts with a dot is never passed to LibreOffice as an option.
+- Folder scans, animation frames, page counts and disk use have limits.
+- Installing a missing module from PyPI now asks first and no longer uses `--break-system-packages` (`pip --user`, or a virtual environment in your own folder if that fails).
+- New icon.
+
+**TR** — CarotOS 1.4 güvenlik denetiminden gelen düzeltmeler, yeni simge ve eksik Python modüllerini kurmanın daha güvenli yolu.
+
+- Görseller yalnızca raster biçimlerle açılır (EPS/Ghostscript yolu kapatıldı). ffmpeg girdisi `file` protokolü ve izin verilen kapsayıcılarla sınırlandı.
+- Çalışan iş parçacığı her durumda biter ve ZIP hatası yutulmak yerine gösterilir. Kapanırken yardımcı süreçler ve iş klasörleri temizlenir.
+- `qpdf` parolası artık komut satırında görünmez. Dosya adları bayta göre kırpılır, noktayla başlayan bir ad LibreOffice'e hiçbir zaman seçenek olarak gitmez.
+- Klasör taraması, animasyon kareleri, sayfa sayısı ve disk kullanımı sınırlandı.
+- Eksik bir modülü PyPI'dan kurmadan önce onay istenir ve `--break-system-packages` kullanılmaz (`pip --user`, olmazsa kendi klasöründe sanal ortam).
+- Yeni simge.
+
 ## 2.0.0
 
 **EN** — Complete rewrite on a GTK 3 interface (the CarotOS design language) with a new, shared conversion engine.
